@@ -13,18 +13,18 @@ const io = socketIo(server, {
   }
 });
 
-// Set up EJS and HBS views 
-app.set('views', path.join(__dirname, 'views'));  // Define where your views are located
+//----------------- Set up EJS and HBS views ----------------
+app.set('views', path.join(__dirname, 'views'));  
 
-// Set up EJS/hbs as the view engine
+//----------------- Set up EJS/hbs as the view engine-------------
 app.set('view engine', 'hbs'); 
 
 
-// Set up HBS as an additional engine
+// -----------------Set up HBS as an additional engine---------------
 app.engine('hbs', require('hbs').__express);
 app.engine('html', require('hbs').__express);
 
-// Register HBS partials
+// --------------------Register HBS partials------------------------
 let hbs = require('hbs');
 hbs.registerPartials(path.join(__dirname, '/views/partials'), {
   rename: function (name) {
@@ -32,17 +32,17 @@ hbs.registerPartials(path.join(__dirname, '/views/partials'), {
   }
 });
 
-// Serve static files
+//--------------- Serve static files-------------------------------
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Routes
+//----------------------- Routes-------------------------------------
 app.get('/', (req, res) => res.send('Server is working'));
 app.get('/videochat', (req, res) => res.render('videochat', { someData: 'value' }));
 app.get('/chat_with_me', (req, res) => res.render('chat_with_me', { someData: 'value' }));
 app.get('/try', (req, res) => res.render('try', { someData: 'value' }));
 
 
-const userIdToSocketId = {}; // user-defined ID to socket.id map
+const userIdToSocketId = {}; 
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -50,20 +50,21 @@ io.on('connection', (socket) => {
 
   socket.emit('socket_id', socket.id);
 
-  // Store custom user ID from client
+  //------------------- Store custom user ID from client--------------------
   socket.on('set-user-id', (userId) => {
     userIdToSocketId[userId] = socket.id;
-    socket.userId = userId; // Save for reverse lookup or cleanup
+    //-----------------------saving ID---------------------
+    socket.userId = userId; 
     console.log(`Mapped user ID ${userId} to socket ID ${socket.id}`);
   });
 
-  // Join room
+  // --------------------Join room------------------------
   socket.on('join-room', (roomId) => {
     socket.join(roomId);
     console.log(`User ${socket.id} joined room ${roomId}`);
   });
 
-  // Group chat
+  //----------------- Group chat----------------------
   socket.on('group-message', ({ roomId, name, message }) => {
     io.to(roomId).emit('receive-group-message', {
       socketId: socket.id,
@@ -72,7 +73,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Global broadcast
+  //----------------------- Global broadcast-----------------------
   socket.on('sendData', (msg) => {
     const dataWithSocketId = {
       ...msg,
@@ -81,7 +82,7 @@ io.on('connection', (socket) => {
     io.emit('receiveData', dataWithSocketId);
   });
 
-  // Private messaging using custom user IDs
+  //---------------------- Private messaging using custom user IDs----------------------
   socket.on('private-message', ({ toUserId, name, message }) => {
     const toSocketId = userIdToSocketId[toUserId];
     if (toSocketId) {
@@ -95,24 +96,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC Signaling using custom user IDs
+  //----------------- WebRTC Signaling using custom user IDs------------------------
   
   socket.on('user', ({ targetId, offer }) => {
     socket.to(targetId).emit('incoming-call', { offer, from: socket.id });
   });
-  // when one client makes an offer…
+  // ------------------when one client makes an offer…----------------------
   socket.on('offer', ({ targetId, offer }) => {
     console.log(`Forwarding offer from ${socket.id} to ${targetId}`);
     socket.to(targetId).emit('offer', { offer, from: socket.id });
   });
 
-  // when the other client sends back an answer…
+  //---------------- when the other client sends back an answer…-------------------------
   socket.on('answer', ({ targetId, answer }) => {
     console.log(`Forwarding answer from ${socket.id} to ${targetId}`);
     socket.to(targetId).emit('answer', { answer });
   });
 
-  // ICE candidates
+  // ----------------ICE candidates------------------------
   socket.on('ice-candidate', ({ targetId, candidate }) => {
     socket.to(targetId).emit('ice-candidate', { candidate });
   });
@@ -124,7 +125,7 @@ io.on('connection', (socket) => {
 
 
 
-// Start server
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
