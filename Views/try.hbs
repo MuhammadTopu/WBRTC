@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>All-in-One Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-light: #e0e7ff;
+      --secondary: #3f37c9;
+      --success: #4cc9f0;
+      --danger: #f72585;
+      --warning: #f8961e;
+      --info: #4895ef;
+      --dark: #212529;
+      --light: #f8f9fa;
+      --gray: #6c757d;
+      --gray-light: #e9ecef;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--dark);
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 25px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    
+    .header h2 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .header .subtitle {
+      color: var(--gray);
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    .user-id-section {
+      background: var(--primary-light);
+      padding: 15px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .section {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .section-header h4 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    
+    .section-header .icon {
+      width: 32px;
+      height: 32px;
+      background: var(--primary-light);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+    }
+
+    #chat {
+      height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--gray-light);
+      border-radius: 12px;
+      padding: 15px;
+      background: #f9f9f9;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .message {
+      padding: 10px 14px;
+      border-radius: 8px;
+      line-height: 1.4;
+      font-size: 14px;
+      max-width: 80%;
+      position: relative;
+    }
+
+    .self {
+      background: var(--primary-light);
+      align-self: flex-end;
+      border-bottom-right-radius: 0;
+    }
+
+    .other {
+      background: white;
+      border: 1px solid var(--gray-light);
+      align-self: flex-start;
+      border-bottom-left-radius: 0;
+    }
+    
+    .message-info {
+      font-size: 12px;
+      color: var(--gray);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .message-info .badge {
+      background: var(--primary);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--dark);
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid var(--gray-light);
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+    }
+
+    .inline-form {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .inline-form .form-group {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    button:hover {
+      background: var(--secondary);
+      transform: translateY(-1px);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    button.secondary {
+      background: white;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    
+    button.secondary:hover {
+      background: var(--primary-light);
+    }
+    
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--gray);
+    }
+    
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--gray);
+    }
+    
+    .status-dot.active {
+      background: #2ecc71;
+    }
+    
+    /* Scrollbar styling */
+    #chat::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    #chat::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    
+    #chat::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 4px;
+    }
+    
+    #chat::-webkit-scrollbar-thumb:hover {
+      background: #aaa;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .chat-container {
+        padding: 20px;
+      }
+      
+      .inline-form {
+        flex-direction: column;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="header">
+      <h2><i class="fas fa-comments"></i> All-in-One Chat</h2>
+      <div class="subtitle">Connect with anyone through global, group, or private chats</div>
+    </div>
+
+    <!-- User ID section -->
+    <div class="user-id-section">
+      <div class="inline-form">
+        <div class="form-group" style="flex: 3;">
+          <input type="text" id="customUserId" placeholder="Enter your unique username (e.g., john_doe)" />
+        </div>
+        <button onclick="registerUserId()">
+          <i class="fas fa-user-edit"></i> Set Username
+        </button>
+      </div>
+      <div class="status-indicator">
+        <div class="status-dot" id="connectionStatus"></div>
+        <span>Your ID: <strong id="myUserId">Not set</strong></span>
+      </div>
+    </div>
+
+    <!-- Chat output area -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon"><i class="fas fa-comment-dots"></i></div>
+        <h4>Chat Messages</h4>
+      </div>
+      <div id="chat"></div>
+    </div>
+
+    <!-- Message input section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon"><i class="fas fa-edit"></i></div>
+        <h4>Compose Message</h4>
+      </div>
+      <div class="form-group">
+        <label for="name">Display Name</label>
+        <input type="text" id="name" placeholder="How you'll appear to others" />
+      </div>
+      <div class="form-group">
+        <label for="message">Message Content</label>
+        <input type="text" id="message" placeholder="Type your message here..." />
+      </div>
+    </div>
+
+    <!-- Global message section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon"><i class="fas fa-globe"></i></div>
+        <h4>Global Chat</h4>
+      </div>
+      <button onclick="sendGlobal()" style="width: 100%;">
+        <i class="fas fa-paper-plane"></i> Send to Everyone
+      </button>
+    </div>
+
+    <!-- Group message section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon"><i class="fas fa-users"></i></div>
+        <h4>Group Chat</h4>
+      </div>
+      <div class="inline-form">
+        <div class="form-group">
+          <input type="text" id="roomId" placeholder="Enter room name (e.g., developers)" />
+        </div>
+        <button onclick="joinRoom()" class="secondary">
+          <i class="fas fa-sign-in-alt"></i> Join Room
+        </button>
+      </div>
+      <button onclick="sendGroup()" style="width: 100%; margin-top: 10px;">
+        <i class="fas fa-paper-plane"></i> Send to Current Group
+      </button>
+      <div class="status-indicator" style="margin-top: 10px;">
+        <div class="status-dot" id="roomStatus"></div>
+        <span>Current room: <strong id="currentRoomDisplay">None</strong></span>
+      </div>
+    </div>
+
+    <!-- Private message section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon"><i class="fas fa-user-secret"></i></div>
+        <h4>Private Chat</h4>
+      </div>
+      <div class="form-group">
+        <label for="targetUserId">Recipient Username</label>
+        <input type="text" id="targetUserId" placeholder="Who are you messaging?" />
+      </div>
+      <button onclick="sendPrivate()" style="width: 100%;">
+        <i class="fas fa-paper-plane"></i> Send Private Message
+      </button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let myUserId = '';
+    let currentRoom = '';
+    const chatBox = document.getElementById('chat');
+    let isConnected = false;
+    let messageCounter = 0;
+
+    // Update connection status UI
+    function updateConnectionStatus() {
+      const statusDot = document.getElementById('connectionStatus');
+      statusDot.classList.toggle('active', isConnected);
+    }
+
+    // Append a message to chat
+    function appendMessage(sender, content, type = 'other', timestamp = new Date(), messageId = null) {
+      const timeString = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      if (messageId && document.getElementById(messageId)) return;
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type === 'self' ? 'self' : 'other'}`;
+      if (messageId) messageDiv.id = messageId;
+      
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'message-info';
+      
+      const badgeSpan = document.createElement('span');
+      badgeSpan.className = 'badge';
+      badgeSpan.textContent = type;
+      
+      infoDiv.innerHTML = `
+        <span>${sender}</span>
+        ${type !== 'self' ? badgeSpan.outerHTML : ''}
+        <span>${timeString}</span>
+      `;
+      
+      messageDiv.appendChild(infoDiv);
+      messageDiv.appendChild(document.createTextNode(content));
+      chatBox.appendChild(messageDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // Generate unique message ID
+    function generateMessageId() {
+      return `msg-${Date.now()}-${++messageCounter}`;
+    }
+
+    // Set your own custom user ID
+    function registerUserId() {
+      const userId = document.getElementById('customUserId').value.trim();
+      if (!userId) {
+        alert('Please enter a valid username');
+        return;
+      }
+      
+      myUserId = userId;
+      document.getElementById('myUserId').textContent = userId;
+      socket.emit('set-user-id', userId);
+      
+      appendMessage('System', `Username set to: ${userId}`, 'self');
+      document.getElementById('connectionStatus').classList.add('active');
+      isConnected = true;
+      updateConnectionStatus();
+    }
+
+    // Join a specific group/room
+    function joinRoom() {
+      const room = document.getElementById('roomId').value.trim();
+      if (!room) {
+        alert('Please enter a room name');
+        return;
+      }
+      
+      if (currentRoom) {
+        socket.emit('leave-room', currentRoom);
+        appendMessage('System', `Left room: ${currentRoom}`, 'self');
+      }
+      
+      currentRoom = room;
+      socket.emit('join-room', room);
+      document.getElementById('currentRoomDisplay').textContent = room;
+      document.getElementById('roomStatus').classList.add('active');
+      
+      appendMessage('System', `Joined room: ${room}`, 'self');
+    }
+
+    // Send message to all users
+    function sendGlobal() {
+      if (!validateMessage()) return;
+      
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      const messageId = generateMessageId();
+      
+      appendMessage(`${name} (you)`, message, 'self', new Date(), messageId);
+      
+      socket.emit('sendData', { 
+        name, 
+        message,
+        senderId: myUserId,
+        messageId
+      });
+      
+      document.getElementById('message').value = '';
+    }
+
+    // Send message to users in current room
+    function sendGroup() {
+      if (!currentRoom) {
+        alert('Please join a room first!');
+        return;
+      }
+      
+      if (!validateMessage()) return;
+      
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      const messageId = generateMessageId();
+      
+      appendMessage(`${name} (you)`, message, 'self', new Date(), messageId);
+      
+      socket.emit('group-message', { 
+        roomId: currentRoom, 
+        name, 
+        message,
+        senderId: myUserId,
+        messageId
+      });
+      
+      document.getElementById('message').value = '';
+    }
+
+    // Send private message to a specific user ID
+    function sendPrivate() {
+      const toUserId = document.getElementById('targetUserId').value.trim();
+      if (!toUserId) {
+        alert('Please enter a recipient username');
+        return;
+      }
+      
+      if (!validateMessage()) return;
+      
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      const messageId = generateMessageId();
+      
+      appendMessage(`${name} (you to ${toUserId})`, message, 'self', new Date(), messageId);
+      
+      socket.emit('private-message', { 
+        toUserId, 
+        name, 
+        message,
+        senderId: myUserId,
+        messageId
+      });
+      
+      document.getElementById('message').value = '';
+    }
+
+    // Validate message inputs
+    function validateMessage() {
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      
+      if (!name || !message) {
+        alert('Please enter both your display name and a message');
+        return false;
+      }
+      
+      if (!myUserId) {
+        alert('Please set your username first');
+        return false;
+      }
+      
+      return true;
+    }
+
+    // Socket event handlers
+    socket.on('connect', () => {
+      isConnected = true;
+      updateConnectionStatus();
+      if (myUserId) {
+        appendMessage('System', 'Connected to chat server', 'self');
+      }
+    });
+
+    socket.on('disconnect', () => {
+      isConnected = false;
+      updateConnectionStatus();
+      appendMessage('System', 'Disconnected from chat server', 'self');
+    });
+
+    socket.on('receiveData', (data) => {
+      if (data.senderId === myUserId) return;
+      appendMessage(
+        `${data.name} (global)`, 
+        data.message, 
+        'other', 
+        new Date(),
+        data.messageId
+      );
+    });
+
+    socket.on('receive-group-message', (data) => {
+      if (data.senderId === myUserId) return;
+
+      appendMessage(
+        `${data.name} (group)`, 
+        data.message, 
+        'other', 
+        new Date(),
+        data.messageId
+      );
+    });
+
+    socket.on('receive-private-message', (data) => {
+      appendMessage(
+        `${data.name} (private)`, 
+        data.message, 
+        'other', 
+        new Date(),
+        data.messageId
+      );
+    });
+
+    socket.on('error', (data) => {
+      appendMessage('Error', data.message, 'other');
+    });
+
+    // Initial system message
+    appendMessage('System', 'Welcome to All-in-One Chat! Set your username to begin.', 'other');
+  </script>
+</body>
+</html>

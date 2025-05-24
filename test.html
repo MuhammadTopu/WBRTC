@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OTP Login</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 400px;
+      margin: 40px auto;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    h2 {
+      text-align: center;
+    }
+    input, button {
+      display: block;
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 10px;
+      font-size: 1em;
+    }
+    #message {
+      text-align: center;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Login</h2>
+  <form id="login-form">
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Password" required />
+    <button type="submit">Send OTP</button>
+  </form>
+
+  <h2 style="display:none;" id="otp-section-title">Enter OTP</h2>
+  <form id="otp-form" style="display:none;">
+    <input type="text" id="otp" placeholder="Enter OTP" required />
+    <button type="submit">Verify OTP</button>
+  </form>
+
+  <div id="message"></div>
+
+  <script>
+    const loginForm = document.getElementById('login-form');
+    const otpForm = document.getElementById('otp-form');
+    const messageDiv = document.getElementById('message');
+    const otpSectionTitle = document.getElementById('otp-section-title');
+
+    let userEmail = '';
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      userEmail = email;
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const msg = await res.text();
+        messageDiv.innerText = msg;
+
+        if (res.ok) {
+          otpForm.style.display = 'block';
+          otpSectionTitle.style.display = 'block';
+        }
+      } catch (err) {
+        console.error(err);
+        messageDiv.innerText = 'Error sending OTP';
+      }
+    });
+
+    otpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const otp = document.getElementById('otp').value;
+
+      try {
+        const res = await fetch('/auth/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: userEmail, otp })
+        });
+
+        const msg = await res.text();
+        messageDiv.innerText = msg;
+
+        if (res.ok) {
+          // Optional: redirect to protected route after success
+          setTimeout(() => {
+            window.location.href = '/videochat'; // or dashboard, etc.
+          }, 1500);
+        }
+      } catch (err) {
+        console.error(err);
+        messageDiv.innerText = 'OTP verification failed';
+      }
+    });
+  </script>
+</body>
+</html>

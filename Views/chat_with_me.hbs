@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>All-in-One Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #f2f4f8;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 700px;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .section {
+      margin-bottom: 25px;
+    }
+
+    .section h4 {
+      margin: 0 0 10px;
+      color: #007bff;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 5px;
+    }
+
+    .info-line {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+
+    #chat {
+      height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      background: #f9f9f9;
+    }
+
+    .message {
+      margin: 6px 0;
+      padding: 6px 10px;
+      border-radius: 5px;
+    }
+
+    .self {
+      background: #d0e6ff;
+      font-weight: bold;
+      color: #004085;
+    }
+
+    .other {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      margin-bottom: 10px;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    .inline {
+      display: flex;
+      gap: 10px;
+    }
+
+    .inline input[type="text"] {
+      flex: 1;
+    }
+
+    button {
+      padding: 10px 15px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    .form-block {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <h2>💬 All-in-One Chat</h2>
+
+    <div class="info-line">🔌 Your Socket ID: <strong id="mySocketId">Loading...</strong></div>
+
+    <div class="section">
+      <h4>🗨️ Chat Window</h4>
+      <div id="chat"></div>
+    </div>
+
+    <div class="section">
+      <h4>🗣 Global Chat</h4>
+      <div class="form-block">
+        <input type="text" id="name" placeholder="Your name" />
+        <input type="text" id="message" placeholder="Your message" />
+        <button onclick="sendGlobal()">Send to Everyone</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h4>👥 Group Chat</h4>
+      <div class="form-block inline">
+        <input type="text" id="roomId" placeholder="Room name (e.g., room1)" />
+        <button onclick="joinRoom()">Join Room</button>
+      </div>
+      <div class="form-block">
+        <button onclick="sendGroup()">Send to Group</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h4>🔒 Private Chat</h4>
+      <div class="form-block inline">
+        <input type="text" id="targetId" placeholder="Target socket ID" />
+        <button onclick="sendPrivate()">Send Private</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let mySocketId = '';
+    let currentRoom = '';
+
+    const chatBox = document.getElementById('chat');
+
+    socket.on('user_id', (id) => {
+      mySocketId = id;
+      document.getElementById('mySocketId').textContent = id;
+    });
+
+    function appendMessage(label, content, cls = 'other') {
+      const div = document.createElement('div');
+      div.className = `message ${cls}`;
+      div.textContent = `[${label}]: ${content}`;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function joinRoom() {
+      const room = document.getElementById('roomId').value.trim();
+      if (!room) return alert('Enter a room name');
+      currentRoom = room;
+      socket.emit('join-room', room);
+      appendMessage('System', `Joined room: ${room}`, 'self');
+    }
+
+    function sendGlobal() {
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      if (!name || !message) return alert('Name and message are required');
+      socket.emit('sendData', { name, message });
+      appendMessage(`${name} (you)`, message, 'self');
+    }
+
+    function sendGroup() {
+      if (!currentRoom) return alert('Join a room first!');
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      if (!name || !message) return alert('Name and message are required');
+      socket.emit('group-message', { roomId: currentRoom, name, message });
+      appendMessage(`${name} (you in ${currentRoom})`, message, 'self');
+    }
+
+    function sendPrivate() {
+      const targetId = document.getElementById('targetId').value.trim();
+      const name = document.getElementById('name').value;
+      const message = document.getElementById('message').value;
+      if (!targetId || !name || !message) return alert('All fields are required');
+      socket.emit('private-message', { toSocketId: targetId, name, message });
+      appendMessage(`${name} (you to ${targetId.slice(0, 5)})`, message, 'self');
+    }
+
+    socket.on('receiveData', (data) => {
+      appendMessage(`${data.name} (global)`, data.message);
+    });
+
+    socket.on('receive-group-message', (data) => {
+      appendMessage(`${data.name} (group)`, data.message);
+    });
+
+    socket.on('receive-private-message', (data) => {
+      appendMessage(`${data.name} (private)`, data.message);
+    });
+  </script>
+</body>
+</html>
+
+
+{{!-- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connectify | Real-time Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-light: #e0e7ff;
+      --secondary: #3f37c9;
+      --success: #4cc9f0;
+      --danger: #f72585;
+      --dark: #212529;
+      --light: #f8f9fa;
+      --gray: #6c757d;
+      --gray-light: #e9ecef;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f5f7fb;
+      color: var(--dark);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .chat-app {
+      width: 100%;
+      max-width: 1200px;
+      height: 90vh;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 350px;
+      background: white;
+      border-right: 1px solid var(--gray-light);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+    }
+
+    .sidebar-header h2 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .user-profile {
+      display: flex;
+      padding: 15px;
+      border-bottom: 1px solid var(--gray-light);
+      align-items: center;
+    }
+
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .user-info {
+      flex: 1;
+    }
+
+    .user-name {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .user-status {
+      font-size: 13px;
+      color: var(--gray);
+    }
+
+    .connection-info {
+      padding: 15px;
+      border-bottom: 1px solid var(--gray-light);
+      font-size: 14px;
+    }
+
+    .connection-code {
+      font-family: monospace;
+      font-weight: bold;
+      color: var(--primary);
+      margin-top: 5px;
+      display: inline-block;
+      padding: 5px 10px;
+      background: var(--primary-light);
+      border-radius: 4px;
+    }
+
+    /* Chat Tabs */
+    .chat-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--gray-light);
+    }
+
+    .chat-tab {
+      flex: 1;
+      text-align: center;
+      padding: 15px 0;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .chat-tab.active {
+      color: var(--primary);
+      border-bottom: 3px solid var(--primary);
+    }
+
+    /* Chat Content */
+    .chat-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      padding: 15px 20px;
+      background: white;
+      border-bottom: 1px solid var(--gray-light);
+      display: flex;
+      align-items: center;
+    }
+
+    .chat-title {
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    .chat-status {
+      font-size: 13px;
+      color: var(--gray);
+      margin-top: 3px;
+    }
+
+    /* Chat Messages */
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background-color: #f0f4f8;
+      background-image: url('https://web.whatsapp.com/img/bg-chat-tile-light_a4be512e7195b6b733d9110b408f075d.png');
+      background-repeat: repeat;
+      background-size: 412px 412px;
+    }
+
+    .message {
+      max-width: 70%;
+      margin-bottom: 15px;
+      position: relative;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message-incoming {
+      align-self: flex-start;
+    }
+
+    .message-outgoing {
+      align-self: flex-end;
+      margin-left: auto;
+    }
+
+    .message-bubble {
+      padding: 12px 16px;
+      border-radius: 18px;
+      position: relative;
+      word-wrap: break-word;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+    }
+
+    .message-incoming .message-bubble {
+      background-color: white;
+      border-top-left-radius: 4px;
+    }
+
+    .message-outgoing .message-bubble {
+      background-color: var(--primary-light);
+      color: var(--dark);
+      border-top-right-radius: 4px;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: var(--gray);
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+    }
+
+    .message-outgoing .message-time {
+      justify-content: flex-end;
+    }
+
+    .message-status {
+      margin-left: 5px;
+      color: var(--primary);
+    }
+
+    .message-sender {
+      font-weight: 500;
+      margin-bottom: 3px;
+      color: var(--primary);
+    }
+
+    .system-message {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .system-message-content {
+      display: inline-block;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 13px;
+    }
+
+    /* Chat Input */
+    .chat-input {
+      padding: 15px;
+      background: white;
+      border-top: 1px solid var(--gray-light);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .private-recipient {
+      display: flex;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    .private-recipient-label {
+      font-size: 14px;
+      margin-right: 10px;
+      color: var(--gray);
+    }
+
+    .private-recipient-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid var(--gray-light);
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .input-area {
+      display: flex;
+      align-items: center;
+    }
+
+    .input-actions {
+      display: flex;
+      margin-right: 15px;
+    }
+
+    .input-action {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--gray);
+    }
+
+    .input-action:hover {
+      background-color: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .message-input {
+      flex: 1;
+      padding: 12px 15px;
+      border: 1px solid var(--gray-light);
+      border-radius: 24px;
+      font-size: 15px;
+      resize: none;
+      max-height: 120px;
+      transition: all 0.3s;
+    }
+
+    .message-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+    }
+
+    .send-btn {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background-color: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .send-btn:hover {
+      background-color: var(--secondary);
+      transform: scale(1.05);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .chat-app {
+        flex-direction: column;
+        height: 100vh;
+        border-radius: 0;
+      }
+      
+      .sidebar {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-app">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <i class="fas fa-comments"></i>
+        <h2>Connectify</h2>
+      </div>
+      
+      <div class="user-profile">
+        <div class="user-avatar" id="user-avatar">U</div>
+        <div class="user-info">
+          <div class="user-name" id="username">Guest User</div>
+          <div class="user-status">Online</div>
+        </div>
+      </div>
+      
+      <div class="connection-info">
+        Your connection ID:
+        <div class="connection-code" id="connection-id">Loading...</div>
+      </div>
+      
+      <div class="chat-tabs">
+        <div class="chat-tab active" onclick="switchTab('global')">Global</div>
+        <div class="chat-tab" onclick="switchTab('group')">Group</div>
+        <div class="chat-tab" onclick="switchTab('private')">Private</div>
+      </div>
+    </div>
+    
+    <!-- Chat Content -->
+    <div class="chat-content">
+      <div class="chat-header">
+        <div>
+          <div class="chat-title" id="chat-title">Global Chat</div>
+          <div class="chat-status" id="chat-status">Everyone can see these messages</div>
+        </div>
+      </div>
+      
+      <div class="chat-messages" id="chat-messages">
+        <div class="system-message">
+          <div class="system-message-content">
+            Welcome to Connectify! Start chatting now.
+          </div>
+        </div>
+      </div>
+      
+      <!-- Global Chat Input -->
+      <div class="chat-input" id="global-input">
+        <div class="input-area">
+          <div class="input-actions">
+            <div class="input-action">
+              <i class="far fa-smile"></i>
+            </div>
+            <div class="input-action">
+              <i class="fas fa-paperclip"></i>
+            </div>
+          </div>
+          <input type="text" class="message-input" id="global-message" placeholder="Type a message...">
+          <button class="send-btn" onclick="sendGlobal()">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Group Chat Input -->
+      <div class="chat-input" id="group-input" style="display: none;">
+        <div class="input-area">
+          <div class="input-actions">
+            <div class="input-action">
+              <i class="far fa-smile"></i>
+            </div>
+          </div>
+          <input type="text" class="message-input" id="group-message" placeholder="Type a group message...">
+          <button class="send-btn" onclick="sendGroup()">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Private Chat Input -->
+      <div class="chat-input" id="private-input" style="display: none;">
+        <div class="private-recipient">
+          <div class="private-recipient-label">To:</div>
+          <input type="text" class="private-recipient-input" id="private-target-id" placeholder="Enter recipient's connection ID">
+        </div>
+        <div class="input-area">
+          <div class="input-actions">
+            <div class="input-action">
+              <i class="far fa-smile"></i>
+            </div>
+          </div>
+          <input type="text" class="message-input" id="private-message" placeholder="Type a private message...">
+          <button class="send-btn" onclick="sendPrivate()">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let mySocketId = '';
+    let currentRoom = '';
+    let username = generateRandomUsername();
+    
+    // Initialize the app
+    document.addEventListener('DOMContentLoaded', function() {
+      // Set user info
+      document.getElementById('user-avatar').textContent = username.charAt(0);
+      document.getElementById('username').textContent = username;
+      
+      // Socket events
+      socket.on('socket_id', (id) => {
+        mySocketId = id;
+        document.getElementById('connection-id').textContent = id;
+        // Set user ID on backend
+        socket.emit('set-user-id', id);
+      });
+      
+      // Global messages - show sender name
+      socket.on('receiveData', (data) => {
+        if (data.socketId !== mySocketId) {
+          addMessage(data.name, data.message, 'incoming', true);
+        }
+      });
+      
+      // Group messages - show sender name
+      socket.on('receive-group-message', (data) => {
+        if (data.socketId !== mySocketId && data.roomId === currentRoom) {
+          addMessage(data.name, data.message, 'incoming', true);
+        }
+      });
+      
+      // Private messages - hide sender name
+      socket.on('receive-private-message', (data) => {
+        addMessage('', data.message, 'incoming', false);
+      });
+    });
+    
+    // Generate random username
+    function generateRandomUsername() {
+      const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Gentle'];
+      const nouns = ['Penguin', 'Tiger', 'Eagle', 'Dolphin', 'Fox'];
+      return `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}`;
+    }
+    
+    // Switch between chat tabs
+    function switchTab(tab) {
+      document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.chat-tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+      
+      document.getElementById('global-input').style.display = 'none';
+      document.getElementById('group-input').style.display = 'none';
+      document.getElementById('private-input').style.display = 'none';
+      
+      if (tab === 'global') {
+        document.getElementById('global-input').style.display = 'flex';
+        document.getElementById('chat-title').textContent = 'Global Chat';
+        document.getElementById('chat-status').textContent = 'Everyone can see these messages';
+      } else if (tab === 'group') {
+        document.getElementById('group-input').style.display = 'flex';
+        document.getElementById('chat-title').textContent = 'Group Chat';
+        document.getElementById('chat-status').textContent = currentRoom ? `In room: ${currentRoom}` : 'Join a room to start chatting';
+      } else if (tab === 'private') {
+        document.getElementById('private-input').style.display = 'flex';
+        document.getElementById('chat-title').textContent = 'Private Chat';
+        document.getElementById('chat-status').textContent = 'Send messages to specific users';
+      }
+    }
+    
+    // Add message to chat
+    function addMessage(sender, content, type = 'incoming', showSender = true) {
+      const messagesContainer = document.getElementById('chat-messages');
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message message-${type}`;
+      
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      messageDiv.innerHTML = `
+        ${showSender && type === 'incoming' ? `<div class="message-sender">${sender}</div>` : ''}
+        <div class="message-bubble">${content}</div>
+        <div class="message-time">
+          ${timeString} <i class="fas fa-check-double message-status"></i>
+        </div>
+      `;
+      
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Join room
+    function joinRoom() {
+      const room = prompt('Enter room name:');
+      if (room) {
+        currentRoom = room;
+        socket.emit('join-room', room);
+        addSystemMessage(`You joined room: ${room}`);
+        document.getElementById('chat-status').textContent = `In room: ${room}`;
+      }
+    }
+    
+    // Send global message
+    function sendGlobal() {
+      const input = document.getElementById('global-message');
+      const message = input.value.trim();
+      
+      if (message) {
+        addMessage('You', message, 'outgoing', true);
+        socket.emit('sendData', { name: username, message });
+        input.value = '';
+      }
+    }
+    
+    // Send group message
+    function sendGroup() {
+      if (!currentRoom) {
+        joinRoom();
+        return;
+      }
+      
+      const input = document.getElementById('group-message');
+      const message = input.value.trim();
+      
+      if (message) {
+        addMessage('You', message, 'outgoing', true);
+        socket.emit('group-message', { roomId: currentRoom, name: username, message });
+        input.value = '';
+      }
+    }
+    
+    // Send private message
+    function sendPrivate() {
+      const targetId = document.getElementById('private-target-id').value.trim();
+      const input = document.getElementById('private-message');
+      const message = input.value.trim();
+      
+      if (!targetId) {
+        alert('Please enter recipient connection ID');
+        return;
+      }
+      
+      if (message) {
+        addMessage('You', `(To ${targetId.slice(0, 5)}) ${message}`, 'outgoing', false);
+        socket.emit('private-message', { toSocketId: targetId, name: username, message });
+        input.value = '';
+      }
+    }
+    
+    // Add system message
+    function addSystemMessage(content) {
+      const messagesContainer = document.getElementById('chat-messages');
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'system-message';
+      
+      messageDiv.innerHTML = `
+        <div class="system-message-content">
+          ${content}
+        </div>
+      `;
+      
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+  </script>
+</body>
+</html> --}}
+
+
+{{!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connectify | Real-time Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-light: #e0e7ff;
+      --secondary: #3f37c9;
+      --success: #4cc9f0;
+      --danger: #f72585;
+      --dark: #212529;
+      --light: #f8f9fa;
+      --gray: #6c757d;
+      --gray-light: #e9ecef;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f5f7fb;
+      color: var(--dark);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .chat-app {
+      width: 100%;
+      max-width: 1200px;
+      height: 90vh;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 350px;
+      background: white;
+      border-right: 1px solid var(--gray-light);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+    }
+
+    .sidebar-header h2 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .user-profile {
+      display: flex;
+      padding: 15px;
+      border-bottom: 1px solid var(--gray-light);
+      align-items: center;
+      position: relative;
+    }
+
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .user-info {
+      flex: 1;
+    }
+
+    .user-name {
+      font-weight: 600;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+    }
+
+    .edit-username {
+      margin-left: 8px;
+      color: var(--gray);
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .user-status {
+      font-size: 13px;
+      color: var(--gray);
+    }
+
+    .connection-info {
+      padding: 15px;
+      border-bottom: 1px solid var(--gray-light);
+      font-size: 14px;
+    }
+
+    .connection-code {
+      font-family: monospace;
+      font-weight: bold;
+      color: var(--primary);
+      margin-top: 5px;
+      display: inline-block;
+      padding: 5px 10px;
+      background: var(--primary-light);
+      border-radius: 4px;
+    }
+
+    /* Chat Tabs */
+    .chat-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--gray-light);
+    }
+
+    .chat-tab {
+      flex: 1;
+      text-align: center;
+      padding: 15px 0;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .chat-tab.active {
+      color: var(--primary);
+      border-bottom: 3px solid var(--primary);
+    }
+
+    /* Chat Content */
+    .chat-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      padding: 15px 20px;
+      background: white;
+      border-bottom: 1px solid var(--gray-light);
+      display: flex;
+      align-items: center;
+    }
+
+    .chat-title {
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    .chat-status {
+      font-size: 13px;
+      color: var(--gray);
+      margin-top: 3px;
+    }
+
+    /* Message Containers */
+    .message-container {
+      flex: 1;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .message-container.active {
+      display: block;
+    }
+
+    .chat-messages {
+      padding: 20px;
+      height: 100%;
+      background-color: #f0f4f8;
+      background-image: url('https://web.whatsapp.com/img/bg-chat-tile-light_a4be512e7195b6b733d9110b408f075d.png');
+      background-repeat: repeat;
+      background-size: 412px 412px;
+    }
+
+    .message {
+      max-width: 70%;
+      margin-bottom: 15px;
+      position: relative;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message-incoming {
+      align-self: flex-start;
+    }
+
+    .message-outgoing {
+      align-self: flex-end;
+      margin-left: auto;
+    }
+
+    .message-bubble {
+      padding: 12px 16px;
+      border-radius: 18px;
+      position: relative;
+      word-wrap: break-word;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+    }
+
+    .message-incoming .message-bubble {
+      background-color: white;
+      border-top-left-radius: 4px;
+    }
+
+    .message-outgoing .message-bubble {
+      background-color: var(--primary-light);
+      color: var(--dark);
+      border-top-right-radius: 4px;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: var(--gray);
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+    }
+
+    .message-outgoing .message-time {
+      justify-content: flex-end;
+    }
+
+    .message-status {
+      margin-left: 5px;
+      color: var(--primary);
+    }
+
+    .message-sender {
+      font-weight: 500;
+      margin-bottom: 3px;
+      color: var(--primary);
+    }
+
+    .message-id {
+      font-family: monospace;
+      font-size: 10px;
+      color: var(--gray);
+      margin-top: 2px;
+    }
+
+    .system-message {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .system-message-content {
+      display: inline-block;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 13px;
+    }
+
+    /* Chat Input */
+    .chat-input {
+      padding: 15px;
+      background: white;
+      border-top: 1px solid var(--gray-light);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .group-id-input, .private-recipient {
+      display: flex;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    .input-label {
+      font-size: 14px;
+      margin-right: 10px;
+      color: var(--gray);
+    }
+
+    .group-id-input input, .private-recipient-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid var(--gray-light);
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .input-area {
+      display: flex;
+      align-items: center;
+    }
+
+    .input-actions {
+      display: flex;
+      margin-right: 15px;
+    }
+
+    .input-action {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--gray);
+    }
+
+    .input-action:hover {
+      background-color: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .message-input {
+      flex: 1;
+      padding: 12px 15px;
+      border: 1px solid var(--gray-light);
+      border-radius: 24px;
+      font-size: 15px;
+      resize: none;
+      max-height: 120px;
+      transition: all 0.3s;
+    }
+
+    .message-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+    }
+
+    .send-btn {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background-color: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .send-btn:hover {
+      background-color: var(--secondary);
+      transform: scale(1.05);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .chat-app {
+        flex-direction: column;
+        height: 100vh;
+        border-radius: 0;
+      }
+      
+      .sidebar {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-app">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <i class="fas fa-comments"></i>
+        <h2>Connectify</h2>
+      </div>
+      
+      <div class="user-profile">
+        <div class="user-avatar" id="user-avatar">U</div>
+        <div class="user-info">
+          <div class="user-name">
+            <span id="username">Guest User</span>
+            <i class="fas fa-pencil-alt edit-username" onclick="editUsername()"></i>
+          </div>
+          <div class="user-status">Online</div>
+        </div>
+      </div>
+      
+      <div class="connection-info">
+        Your connection ID:
+        <div class="connection-code" id="connection-id">Loading...</div>
+      </div>
+      
+      <div class="chat-tabs">
+        <div class="chat-tab active" onclick="switchTab('global')">Global</div>
+        <div class="chat-tab" onclick="switchTab('group')">Group</div>
+        <div class="chat-tab" onclick="switchTab('private')">Private</div>
+      </div>
+    </div>
+    
+    <!-- Chat Content -->
+    <div class="chat-content">
+      <div class="chat-header">
+        <div>
+          <div class="chat-title" id="chat-title">Global Chat</div>
+          <div class="chat-status" id="chat-status">Everyone can see these messages</div>
+        </div>
+      </div>
+      
+      <!-- Global Messages -->
+      <div class="message-container active" id="global-messages">
+        <div class="chat-messages" id="global-chat">
+          <div class="system-message">
+            <div class="system-message-content">
+              Welcome to Global Chat! Everyone can see these messages.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Group Messages -->
+      <div class="message-container" id="group-messages">
+        <div class="chat-messages" id="group-chat">
+          <div class="system-message">
+            <div class="system-message-content">
+              Join or create a group to start chatting.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Private Messages -->
+      <div class="message-container" id="private-messages">
+        <div class="chat-messages" id="private-chat">
+          <div class="system-message">
+            <div class="system-message-content">
+              Enter a recipient ID to start private chat.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Global Chat Input -->
+      <div class="chat-input" id="global-input">
+        <div class="input-area">
+          <div class="input-actions">
+            <div class="input-action">
+              <i class="far fa-smile"></i>
+            </div>
+            <div class="input-action">
+              <i class="fas fa-paperclip"></i>
+            </div>
+          </div>
+          <input type="text" class="message-input" id="global-message" placeholder="Type a message...">
+          <button class="send-btn" onclick="sendGlobal()">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Group Chat Input -->
+      <div class="chat-input" id="group-input" style="display: none;">
+        <div class="group-id-input">
+          <div class="input-label">Group ID:</div>
+          <input type="text" class="group-id-input" id="group-id" placeholder="Enter group ID">
+          <button class="send-btn" style="margin-left: 10px; width: auto; padding: 0 15px;" onclick="joinGroup()">
+            Join
+          </button>
+        </div>
+        <div class="input-area">
+          <div class="input-actions">
+            <div class="input-action">
+              <i class="far fa-smile"></i>
+            </div>
+          </div>
+          <input type="text" class="message-input" id="group-message" placeholder="Type a group message...">
+          <button class="send-btn" onclick="sendGroup()">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Private Chat Input -->
+      <div class="chat-input" id="private-input" style="display: none;">
+        <div class="private-recipient">
+          <div class="input-label">To:</div>
+          <input type="text" class="private-recipient-input" id="private-target-id" placeholder="Enter recipient's connection ID">
+        </div>
+        <div class="input-area">
+          <div class="input-actions">
+            <div class="input-action">
+              <i class="far fa-smile"></i>
+            </div>
+          </div>
+          <input type="text" class="message-input" id="private-message" placeholder="Type a private message...">
+          <button class="send-btn" onclick="sendPrivate()">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let mySocketId = '';
+    let currentRoom = '';
+    let username = generateRandomUsername();
+    let activeTab = 'global';
+    
+    // Initialize the app
+    document.addEventListener('DOMContentLoaded', function() {
+      // Set user info
+      document.getElementById('user-avatar').textContent = username.charAt(0);
+      document.getElementById('username').textContent = username;
+      
+      // Socket events
+      socket.on('socket_id', (id) => {
+        mySocketId = id;
+        document.getElementById('connection-id').textContent = id;
+        // Set user ID on backend
+        socket.emit('set-user-id', id);
+      });
+      
+      // Global messages - show sender name and ID
+      socket.on('receiveData', (data) => {
+        if (data.socketId !== mySocketId) {
+          addMessage('global', data.name, data.socketId, data.message, 'incoming');
+        }
+      });
+      
+      // Group messages - show sender name and ID
+      socket.on('receive-group-message', (data) => {
+        if (data.socketId !== mySocketId && data.roomId === currentRoom) {
+          addMessage('group', data.name, data.socketId, data.message, 'incoming');
+        }
+      });
+      
+      // Private messages - show only message
+      socket.on('receive-private-message', (data) => {
+        addMessage('private', '', '', data.message, 'incoming');
+      });
+      
+      // Welcome message
+      addSystemMessage('global', 'Welcome to Global Chat! Everyone can see these messages.');
+      addSystemMessage('group', 'Join or create a group to start chatting.');
+      addSystemMessage('private', 'Enter a recipient ID to start private chat.');
+    });
+    
+    // Generate random username
+    function generateRandomUsername() {
+      const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Gentle'];
+      const nouns = ['Penguin', 'Tiger', 'Eagle', 'Dolphin', 'Fox'];
+      return `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}`;
+    }
+    
+    // Edit username
+    function editUsername() {
+      const newName = prompt('Enter your new username:', username);
+      if (newName && newName.trim() !== '') {
+        username = newName.trim();
+        document.getElementById('username').textContent = username;
+        document.getElementById('user-avatar').textContent = username.charAt(0);
+      }
+    }
+    
+    // Switch between chat tabs
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.chat-tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+      
+      // Hide all message containers
+      document.querySelectorAll('.message-container').forEach(c => c.classList.remove('active'));
+      // Show active message container
+      document.getElementById(`${tab}-messages`).classList.add('active');
+      
+      // Hide all input sections
+      document.getElementById('global-input').style.display = 'none';
+      document.getElementById('group-input').style.display = 'none';
+      document.getElementById('private-input').style.display = 'none';
+      
+      // Show active input section
+      document.getElementById(`${tab}-input`).style.display = 'flex';
+      
+      // Update header
+      if (tab === 'global') {
+        document.getElementById('chat-title').textContent = 'Global Chat';
+        document.getElementById('chat-status').textContent = 'Everyone can see these messages';
+      } else if (tab === 'group') {
+        document.getElementById('chat-title').textContent = 'Group Chat';
+        document.getElementById('chat-status').textContent = currentRoom ? `In room: ${currentRoom}` : 'Join a room to start chatting';
+      } else if (tab === 'private') {
+        document.getElementById('chat-title').textContent = 'Private Chat';
+        document.getElementById('chat-status').textContent = 'Send messages to specific users';
+      }
+    }
+    
+    // Join group
+    function joinGroup() {
+      const groupId = document.getElementById('group-id').value.trim();
+      if (groupId) {
+        currentRoom = groupId;
+        socket.emit('join-room', groupId);
+        addSystemMessage('group', `You joined group: ${groupId}`);
+        document.getElementById('chat-status').textContent = `In group: ${groupId}`;
+      }
+    }
+    
+    // Add message to chat
+    function addMessage(tab, sender, senderId, content, type = 'incoming') {
+      const messagesContainer = document.getElementById(`${tab}-chat`);
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message message-${type}`;
+      
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      let senderHtml = '';
+      if (type === 'outgoing') {
+        senderHtml = `<div class="message-sender">You</div>`;
+      } else if (sender && tab !== 'private') {
+        senderHtml = `
+          <div class="message-sender">${sender}</div>
+          ${senderId ? `<div class="message-id">ID: ${senderId}</div>` : ''}
+        `;
+      }
+      
+      messageDiv.innerHTML = `
+        ${senderHtml}
+        <div class="message-bubble">${content}</div>
+        <div class="message-time">
+          ${timeString} <i class="fas fa-check-double message-status"></i>
+        </div>
+      `;
+      
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Add system message
+    function addSystemMessage(tab, content) {
+      const messagesContainer = document.getElementById(`${tab}-chat`);
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'system-message';
+      
+      messageDiv.innerHTML = `
+        <div class="system-message-content">
+          ${content}
+        </div>
+      `;
+      
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Send global message
+    function sendGlobal() {
+      const input = document.getElementById('global-message');
+      const message = input.value.trim();
+      
+      if (message) {
+        addMessage('global', 'You', mySocketId, message, 'outgoing');
+        socket.emit('sendData', { name: username, message });
+        input.value = '';
+      }
+    }
+    
+    // Send group message
+    function sendGroup() {
+      if (!currentRoom) {
+        alert('Please join a group first');
+        return;
+      }
+      
+      const input = document.getElementById('group-message');
+      const message = input.value.trim();
+      
+      if (message) {
+        addMessage('group', 'You', mySocketId, message, 'outgoing');
+        socket.emit('group-message', { roomId: currentRoom, name: username, message });
+        input.value = '';
+      }
+    }
+    
+    // Send private message
+    function sendPrivate() {
+      const targetId = document.getElementById('private-target-id').value.trim();
+      const input = document.getElementById('private-message');
+      const message = input.value.trim();
+      
+      if (!targetId) {
+        alert('Please enter recipient connection ID');
+        return;
+      }
+      
+      if (message) {
+        addMessage('private', 'You', '', `(To ${targetId.slice(0, 5)}) ${message}`, 'outgoing');
+        socket.emit('private-message', { toSocketId: targetId, name: username, message });
+        input.value = '';
+      }
+    }
+  </script>
+</body>
+</html> --}}
+

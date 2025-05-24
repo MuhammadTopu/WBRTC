@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title> Cum Media Chat</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      background: #dcdee2; 
+      margin:0; 
+      padding:20px;
+    }
+
+    h1, p { 
+      text-align:center;
+    }
+
+    .media-container { 
+      display:flex; 
+      justify-content:space-around; 
+      margin-bottom:20px;
+    }
+      
+    video, audio { 
+      width:65%; 
+      border:2px solid #444; 
+      border-radius:8px;
+    }
+    
+    .call-controls, .controls { 
+      text-align:center; 
+      margin-bottom:20px;
+    }
+
+    .call-controls input { 
+      padding:10px; 
+      font-size:16px; 
+      width:200px; 
+      margin-right:10px;
+    }
+
+    .call-controls button, .controls button { 
+      margin:0 5px; 
+      padding:10px 20px; 
+      font-size:16px;
+    }
+
+    #downloadLink { 
+      display:none; 
+      margin-left:10px; 
+      font-size:16px;
+    }
+
+    video { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1> WebRTC Media Chat</h1>
+  <p>Your socket ID: <span id="myId">...</span></p>
+
+  <!-- Local / Remote streams -->
+  <div class="media-container">
+    <video id="localVideo" autoplay muted playsinline></video>
+    <audio id="localAudio" autoplay muted hidden></audio>
+    <video id="remoteVideo" autoplay playsinline hidden></video>
+    <audio id="remoteAudio" autoplay hidden></audio>
+  </div>
+
+  <!-- Call & Record Controls -->
+  <div class="call-controls">
+    <input id="targetIdInput" placeholder="Enter target socket ID" />
+    <button id="callButton" disabled>Call</button>
+    <button id="recordButton" disabled>Start Recording</button>
+    <button id="stopRecordButton" disabled>Stop Recording</button>
+    <a id="downloadLink">Download Recording</a>
+  </div>
+
+  <!-- Mute / Share / End -->
+  <div class="controls">
+    <button id="muteAudio">Mute Audio</button>
+    <button id="muteVideo">Mute Video</button>
+    <button id="shareScreen">Share Screen</button>
+    <button id="endCall">End Call</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket        = io();
+    const myIdSpan      = document.getElementById('myId');
+    const localVideo    = document.getElementById('localVideo');
+    const localAudio    = document.getElementById('localAudio');
+    const remoteVideo   = document.getElementById('remoteVideo');
+    const remoteAudio   = document.getElementById('remoteAudio');
+    const targetInput   = document.getElementById('targetIdInput');
+    const callBtn       = document.getElementById('callButton');
+    const recordBtn     = document.getElementById('recordButton');
+    const stopRecBtn    = document.getElementById('stopRecordButton');
+    const downloadLink  = document.getElementById('downloadLink');
+    const muteAudioBtn  = document.getElementById('muteAudio');
+    const muteVideoBtn  = document.getElementById('muteVideo');
+    const shareBtn      = document.getElementById('shareScreen');
+    const endBtn        = document.getElementById('endCall');
+
+    let localStream      = null,
+        peerConnection   = null,
+        currentTargetId  = null,
+        mediaRecorder,
+        recordedChunks   = [],
+        isAudioMuted     = false,
+        isVideoMuted     = false;
+
+    const config = {
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    };
+
+    // 0) showin the socket id
+      socket.on('socket_id', (id) => {
+    console.log('My Socket ID:', id);
+    myIdSpan.textContent = id;
+  });
+
+    // 1) media fallback chain
+    async function initMedia() {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio:true, video:true });
+        setupLocalStream(s);
+      } catch {
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ audio:false, video:true });
+          setupLocalStream(s);
+        } catch {
+          try {
+            const s = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+            setupLocalStream(s);
+          } catch {
+            console.warn('No media devices found');
+            alert("No media devices found");
+            callBtn.disabled = true;
+          }
+        }
+      }
+    }
+
+    function setupLocalStream(stream) {
+      localStream = stream;
+      const hasVideo = !!stream.getVideoTracks().length;
+      const hasAudio = !!stream.getAudioTracks().length;
+
+      if (hasVideo) {
+        localVideo.srcObject = stream;
+        localVideo.hidden    = false;
+      } else if (hasAudio) {
+        localAudio.srcObject = stream;
+        localAudio.hidden    = false;
+      }
+      callBtn.disabled = false;
+      if (!hasAudio) muteAudioBtn.disabled = true;
+      if (!hasVideo) muteVideoBtn.disabled = true;
+    }
+
+    initMedia();
+
+    // 2) outgoing call
+    callBtn.onclick = () => {
+      const tid = targetInput.value.trim();
+      if (!tid) return alert('Enter target ID');
+      currentTargetId = tid;
+      startCall(tid);
+    };
+
+    async function startCall(targetId) {
+      peerConnection = new RTCPeerConnection(config);
+      // add all local tracks
+      localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+
+      peerConnection.ontrack       = e => handleRemoteStream(e.streams[0]);
+      peerConnection.onicecandidate = e => {
+        if (e.candidate) {
+          socket.emit('ice-candidate', { targetId, candidate: e.candidate });
+        }
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit('offer', { targetId, offer });
+    }
+
+    // 3) incoming offer → initial vs renegotiation
+    socket.on('offer', async ({ offer, from }) => {
+      if (peerConnection && from === currentTargetId) {
+        console.log('Renegotiation from', from);
+        await peerConnection.setRemoteDescription(offer);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('answer', { targetId: from, answer });
+        return;
+      }
+
+      if (!confirm(`Incoming call from ${from}. Accept?`)) {
+        console.log('Call declined');
+        return;
+      }
+
+      currentTargetId = from;
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+      peerConnection.ontrack       = e => handleRemoteStream(e.streams[0]);
+      peerConnection.onicecandidate = e => {
+        if (e.candidate) {
+          socket.emit('ice-candidate', { targetId: from, candidate: e.candidate });
+        }
+      };
+
+      await peerConnection.setRemoteDescription(offer);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      socket.emit('answer', { targetId: from, answer });
+    });
+
+    socket.on('answer', async ({ answer }) => {
+      console.log('Got answer');
+      await peerConnection.setRemoteDescription(answer);
+    });
+
+    socket.on('ice-candidate', async ({ candidate }) => {
+      try {
+        await peerConnection.addIceCandidate(candidate);
+      } catch (e) {
+        console.error('ICE error', e);
+      }
+    });
+
+    // 4) handle incoming media
+    function handleRemoteStream(stream) {
+      const hasVideo = !!stream.getVideoTracks().length;
+      const hasAudio = !!stream.getAudioTracks().length;
+
+      if (hasVideo) {
+        remoteVideo.srcObject = stream;
+        remoteVideo.hidden    = false;
+        remoteAudio.hidden    = true;
+      } else if (hasAudio) {
+        remoteAudio.srcObject = stream;
+        remoteAudio.hidden    = false;
+        remoteVideo.hidden    = true;
+      }
+
+      recordBtn.disabled = false;
+    }
+
+    // 5) recording...
+    recordBtn.onclick = () => {
+      const recStream = remoteVideo.srcObject || remoteAudio.srcObject;
+      if (!recStream) return alert('No remote stream to record');
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(recStream);
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type:'video/mp4' });
+        downloadLink.href     = URL.createObjectURL(blob);
+        downloadLink.download = 'rec.mp4';
+        downloadLink.style.display = 'inline';
+      };
+      mediaRecorder.start();
+      recordBtn.disabled = true;
+      stopRecBtn.disabled = false;
+    };
+    stopRecBtn.onclick = () => {
+      mediaRecorder.stop();
+      recordBtn.disabled = false;
+      stopRecBtn.disabled = true;
+    };
+
+    // 6) mute/unmute
+    muteAudioBtn.onclick = () => {
+      isAudioMuted = !isAudioMuted;
+      localStream.getAudioTracks().forEach(t => t.enabled = !isAudioMuted);
+      muteAudioBtn.textContent = isAudioMuted ? 'Unmute Audio' : 'Mute Audio';
+    };
+    muteVideoBtn.onclick = () => {
+      isVideoMuted = !isVideoMuted;
+      localStream.getVideoTracks().forEach(t => t.enabled = !isVideoMuted);
+      muteVideoBtn.textContent = isVideoMuted ? 'Unmute Video' : 'Mute Video';
+    };
+
+    // 7) share screen 
+    shareBtn.onclick = async () => {
+      if (!peerConnection) return alert('Start a call first');
+      try {
+        const ss = await navigator.mediaDevices.getDisplayMedia({ video:true });
+        const screenTrack = ss.getVideoTracks()[0];
+
+        localVideo.srcObject = ss;
+        localVideo.hidden    = false;
+
+        localVideo.ondblclick = () => {
+          if (!document.fullscreenElement) {
+            localVideo.requestFullscreen();
+          } else {
+            document.exitFullscreen();
+          }
+        };
+
+        let sender = peerConnection.getSenders()
+          .find(s => s.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(screenTrack);
+        } else {
+          sender = peerConnection.addTrack(screenTrack, ss);
+        }
+
+        const offer2 = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer2);
+        socket.emit('offer', { targetId: currentTargetId, offer: offer2 });
+
+        screenTrack.onended = async () => {
+          localVideo.srcObject = localStream;
+
+          if (sender) {
+            const camTrack = localStream.getVideoTracks()[0];
+            if (camTrack) {
+              await sender.replaceTrack(camTrack);
+            } else {
+              peerConnection.removeTrack(sender);
+            }
+          }
+
+          const offer3 = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer3);
+          socket.emit('offer', { targetId: currentTargetId, offer: offer3 });
+        };
+      } catch (err) {
+        console.error('Screen share failed:', err);
+        alert('Could not share screen.');
+      }
+    };
+
+    endBtn.onclick = () => {
+      peerConnection?.close();
+      peerConnection = null;
+      remoteVideo.srcObject = null;
+      remoteAudio.srcObject = null;
+      recordBtn.disabled     = true;
+      stopRecBtn.disabled    = true;
+    };
+  </script>
+</body>
+</html>

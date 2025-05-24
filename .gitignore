@@ -1,0 +1,21 @@
+# Dependency folders
+node_modules/
+
+# VSCode workspace settings
+.vscode/
+
+# Logs
+*.log
+
+# Environment files
+.env
+
+# OS/IDE junk
+.DS_Store
+*.swp
+.idea/
+
+# Optional: ignore image files if not needed
+*.png
+*.jpg
+*.jpeg
