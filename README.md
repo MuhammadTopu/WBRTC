@@ -1,3 +1,7 @@
 ONE STOP SOLUTION 
 
 CHATTTING AND VIEO CALLING SYSTEM  
+
+npm i 
+
+nodemon index.js
